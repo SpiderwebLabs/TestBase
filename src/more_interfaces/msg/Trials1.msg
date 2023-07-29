@@ -1,0 +1,16 @@
+bool is_in_air
+bool armed
+float64 battery_percentage
+float64 pos_latitude
+float64 pos_longitude
+float32 pos_altitude
+float32 rel_altitude
+int32 gps_satellites
+int32 landed_state
+float64 velocity_x
+float64 velocity_y
+float64 velocity_z
+int32 drone_id
+bool mission_done
+float64 current_yaw
+int32  flight_mode
