@@ -1,0 +1,6 @@
+string message
+string mission_id
+bool trigger
+---
+bool outcome
+string outcome2

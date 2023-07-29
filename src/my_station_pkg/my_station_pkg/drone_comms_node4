@@ -1,0 +1,265 @@
+import asyncio
+from more_interfaces.srv import Comms
+from more_interfaces.msg import Trials1
+from rclpy.node import Node
+import rclpy
+from mavsdk import System
+from mavsdk.mission import (MissionItem, MissionPlan)
+import asyncio
+import time
+from decimal import Decimal
+import sys
+from rclpy.executors import ExternalShutdownException
+
+
+rtl_alt_default= 3.0
+takeoff_alt_default = 3.0
+class MyCommsNode(Node):
+    def __init__(self):
+        '''This is the constructor of the class. It initializes the node and the service and the publisher'''
+        super().__init__('drone_comms_node')
+        self.activated_ = False
+        '''Create a ROS2 service to receive requests from the client node has callback function(callback_set_comm)'''
+        self.set_comms_service_ = self.create_service(
+            Comms, "set_comms", self.callback_set_comm)
+        '''Create a ROS2 publisher to publish the drone status'''
+        self.status_publisher_ = self.create_publisher(
+            Trials1, "status_update", 10)
+        # '''Create a ROS2 timer to periodically publish the drone status'''
+        self.timer_ = self.create_timer(0.8, self.callback_status_update)
+        self.set_param()
+        
+        self.drone = System()
+        self.loop = asyncio.get_event_loop()
+        self.declare_parameter("return_to_launch_altitude", rtl_alt_default)
+        self.declare_parameter("takeoff_altitude", takeoff_alt_default)
+        self.return_launch_param = self.get_parameter("return_to_launch_altitude").get_parameter_value().double_value
+        self.takeoff_alt_param = self.get_parameter("takeoff_altitude").get_parameter_value().double_value
+        self.drone_action = "DoNothing"
+        self.mission_complete = False
+        self.longitude = None
+        self.latitude = None
+        self.altitude = None
+        self.desired_yaw = None
+        self.land_delay = -1
+        self.flight_mode = 0
+    def callback_status_update(self):
+        '''Fucntion to get status information and publish'''
+        self.loop.run_until_complete(self.drone_mission())
+        Incoming_msg = self.loop.run_until_complete(self.drone_status())
+        msg = Trials1()
+        #updating drone status information
+        msg.battery_percentage = Incoming_msg[0]
+        msg.is_in_air = Incoming_msg[2]
+        msg.armed = Incoming_msg[1]
+        msg.landed_state = Incoming_msg[3]
+        msg.pos_latitude = Incoming_msg[4]
+        msg.pos_longitude = Incoming_msg[5]
+        msg.pos_altitude = Incoming_msg[6]
+        msg.velocity_x = Incoming_msg[7]
+        msg.velocity_y = Incoming_msg[8]
+        msg.velocity_z = Incoming_msg[9]
+        msg.current_yaw = Incoming_msg[10]
+        msg.mission_done = self.mission_complete
+        msg.flight_mode = self.flight_mode
+        #publishing drone status information
+        self.status_publisher_.publish(msg)
+
+    async def callback_set_comm(self, request, response):
+        '''This function is called when the server receives a request from the msg_receiver_node to either start or abort the mission'''
+        self.get_logger().info("set_drone_action")
+        self.drone_action = request.message
+        self.get_logger().info(self.drone_action)        
+        self.flight_longitude = request.pos_longitude
+        self.flight_latitude = request.pos_latitude
+        self.flight_altitude = request.pos_altitude
+        self.desired_yaw = request.turn_yaw
+        response.connect_success = True
+        return response
+
+    async def drone_mission(self):
+        '''Function sends commands to Drone'''
+        if self.drone_action == "Clearmission":
+            # self.get_logger().info("Drone Mission Clearing")
+            await self.drone.action.hold()
+        elif self.drone_action == "Land":
+            # self.get_logger().info("Drone landing...")
+            await self.drone.action.land()  #land the drone
+            self.drone_action = None
+        elif self.drone_action == "Goto":
+            # self.get_logger().info("Going to location ...")
+            lon = Decimal(self.flight_longitude)
+            lat = Decimal(self.flight_latitude)
+            alt = Decimal(self.flight_altitude)
+            await self.drone.action.arm()    # arm the drone
+            await self.upload_and_start_new_mission(lon, lat, alt)
+            # self.get_logger().info("Drone going to location")
+            self.drone_action = None
+
+        elif self.drone_action == "Turn":
+            # self.get_logger().info("Drone turning ...")
+            lon = Decimal(self.flight_longitude)
+            lat = Decimal(self.flight_latitude)
+            alt = Decimal(self.flight_altitude)
+            await self.drone.action.goto_location(lat, lon, alt, self.desired_yaw)
+            self.drone_action = None
+           
+        elif self.drone_action == "Goback":
+            # self.get_logger().info("Going back to Takeoff position ...")
+            await self.drone.action.return_to_launch()
+            self.drone_action = None
+            # self.get_logger().info("Drone going to take off position")
+            self.drone_action = None
+
+    async def upload_and_start_new_mission(self, lon, lat, alt):
+        mission_items = []
+        mission_items.append(MissionItem(
+                                        lat,
+                                        lon,
+                                        alt,
+                                        3.0,
+                                        True,
+                                        float('nan'),
+                                        float('nan'),
+                                        MissionItem.CameraAction.NONE,
+                                        5.0,
+                                        float('nan'),
+                                        3.0,
+                                        float('nan'),
+                                        float('nan')))
+        mission_plan = MissionPlan(mission_items)
+        await self.drone.mission.upload_mission(mission_plan)
+        await self.drone.mission.start_mission()
+
+    async def set_param(self):
+        try:
+            async for state in self.drone.core.connection_state():
+                if state.is_connected:
+                    # self.get_logger().info("drone connected ...")
+                    break
+        except:
+            #await self.drone.connect(system_address="serial:///dev/ttyRadiotelem:57600")
+            await self.drone.connect(system_address = "udp://:14540")
+      
+        await self.drone.param.set_param_float("RTL_LAND_DELAY",self.land_delay)
+        await self.drone.param.set_param_float("RTL_RETURN_ALT",self.return_launch_param)
+        
+    async def drone_status(self):
+        
+    
+        try:
+            async for state in self.drone.core.connection_state():
+                if state.is_connected:
+                    # self.get_logger().info("drone connected ...")
+                    break
+        except:
+            
+            #await self.drone.connect(system_address="serial:///dev/ttyRadiotelem:57600")
+            await self.drone.connect(system_address = "udp://:14540")
+               
+        async for battery in self.drone.telemetry.battery():  # get drone battery status
+            # self.get_logger().info(f"battery_state: {battery.remaining_percent}")
+            break
+
+        
+        async for gps_info in self.drone.telemetry.gps_info():
+            # self.get_logger().info(f"GPS info: {gps_info}")
+            break
+
+        async for in_air in self.drone.telemetry.in_air():  # get drone flying status
+            # self.get_logger().info(f"in_air:{in_air}")
+            break
+
+        async for armed in self.drone.telemetry.armed():  # get drone arming status
+            self.armed = armed
+            # self.get_logger().info(f"armed:{armed}")
+            break
+
+        async for land_detected in self.drone.telemetry.landed_state():  # get landing status
+            landed_status = self.landing_state_check(land_detected)
+            # self.get_logger().info(f"landed_state:{landed_status}")
+            break
+
+        
+        async for position in self.drone.telemetry.position():  # get drone position
+            # self.get_logger().info(f"position_lat:{position.latitude_deg}")
+            # self.get_logger().info(f"position_lon:{position.longitude_deg}")
+            # self.get_logger().info(f"position_alt:{position.relative_altitude_m}")
+            # self.get_logger().info(f"position_alt:{position.absolute_altitude_m}")
+
+            break
+    
+        async for velocity in self.drone.telemetry.velocity_ned():
+            velocity_x = velocity.north_m_s
+            # self.get_logger().info(f"velocity_x:{velocity_x}")
+            velocity_y = velocity.east_m_s
+            self.get_logger().info(f"velocity_y: {velocity_y}")
+            velocity_z = velocity.down_m_s
+            self.get_logger().info(f"velocity_z:{velocity_z}")
+            break
+
+        async for yaw_info in self.drone.telemetry.attitude_euler():
+            self.get_logger().info(f"yaw_angle: {yaw_info.yaw_deg}")
+            break
+
+        async for flight_info in self.drone.telemetry.flight_mode():
+            self.get_logger().info(f"flight_mode: {flight_info}")
+            self.mission_complete_function(flight_info)
+            break
+        
+        
+        self.mission_complete = await self.drone.mission.is_mission_finished()
+
+        return battery.remaining_percent, armed,in_air, landed_status, position.latitude_deg, position.longitude_deg, position.absolute_altitude_m,velocity_x,velocity_y,velocity_z, yaw_info.yaw_deg,gps_info, position.relative_altitude_m
+
+    def mission_complete_function(self,flight_info):
+        match flight_info:
+            case flight_info.HOLD:
+                self.flight_mode = 3
+                return self.flight_mode
+            case flight_info.MISSION:
+                self.flight_mode = 4
+                return self.flight_mode
+            case flight_info.TAKEOFF:
+                self.flight_mode = 2
+                return self.flight_mode
+            case flight_info.LAND:
+                self.flight_mode = 6
+                return self.flight_mode
+            case flight_info.RETURN_TO_LAUNCH:
+                self.flight_mode = 5
+                return self.flight_mode
+                
+                   
+    def landing_state_check(self,lander_state):
+        '''function to check drone landing status and assign an integer to each state'''
+
+        match lander_state:
+            case lander_state.ON_GROUND:
+                return 0
+            case lander_state.IN_AIR:
+                return 2
+            case lander_state.TAKING_OFF:
+                return 1
+            case lander_state.LANDING:
+                return 3
+            case lander_state.UNKNOWN:
+                return 4
+
+
+def main(args = None):
+    rclpy.init(args=args)
+    try:
+        node = MyCommsNode()
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    except ExternalShutdownException:
+        sys.exit(1)
+    finally:
+        rclpy.try_shutdown()
+        node.destroy_node()
+
+
+if __name__ == '__main__':
+    main()
