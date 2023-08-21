@@ -27,7 +27,7 @@ class ManualMode(Node):
         if self.trigger_manual_mode:
             self.get_logger().info('I am in Manual mode')
             self.timer_request.trigger = True
-            self.timer_request.time = 60.0
+            self.timer_request.time = 120.0
             self.timer_control_client.call_async(self.timer_request)
         else:
             self.get_logger().info('Manual mode deactivated')

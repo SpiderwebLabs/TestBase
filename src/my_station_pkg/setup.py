@@ -41,7 +41,8 @@ setup(
             "manual_mode= my_station_pkg.manual_mode:main",
             "Batteryholder = my_station_pkg.Batteryholder:main",
             "rtk = my_station_pkg.rtk:main",
-            "serial = my_station_pkg.serial:main"
+            "serial = my_station_pkg.serial:main",
+            'test= my_station_pkg.test:main'
 
         ],
     },

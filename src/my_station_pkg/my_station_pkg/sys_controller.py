@@ -100,7 +100,6 @@ class MyStateMachineNode(Node):
         response.success = True
         return response
 
-    
     def turn_complete_callback(self, request, response):
         self.get_logger().info("Drone done turning")
         self.turn_complete = request.trigger
