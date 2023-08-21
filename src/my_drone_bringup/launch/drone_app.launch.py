@@ -11,11 +11,11 @@ def generate_launch_description():
         executable='drone_comms_node',
         output='screen')
 
-    telemetrypoll_node = Node(
-        package='my_station_pkg',
-        executable='telemetrypoll_node',
-        output='screen'
-    )
+    # telemetrypoll_node = Node(
+    #     package='my_station_pkg',
+    #     executable='telemetrypoll_node',
+    #     output='screen'
+    # )
 
     mission_update = Node(
         package="my_station_pkg",
@@ -66,15 +66,20 @@ def generate_launch_description():
         package='my_station_pkg',
         executable='timer_node'
     )
-    ai_node = Node(
-        package='my_station_pkg',
-        executable='ai_node'
-    )
 
-    box_select_node = Node(
-        package="my_station_pkg",
-        executable="box_select_node"
+    serial = Node(
+        package='my_station_pkg',
+        executable='serial'
     )
+    # ai_node = Node(
+    #     package='my_station_pkg',
+    #     executable='ai_node'
+    # )
+
+    # box_select_node = Node(
+    #     package="my_station_pkg",
+    #     executable="box_select_node"
+    # )
 
     # slave_node = Node (
     #     package= "my_station_pkg",
@@ -82,28 +87,28 @@ def generate_launch_description():
     #     output = 'screen'
     # )
 
-    error_tracking_node = Node(
-        package="my_station_pkg",
-        executable="error_tracking_node",
-        output='screen'
-    )
+    # error_tracking_node = Node(
+    #     package="my_station_pkg",
+    #     executable="error_tracking_node",
+    #     output='screen'
+    # )
 
-    img_processing_node = Node(
-        package="my_station_pkg",
-        executable="img_processing_node"
-    )
-    streamer_node = Node(
-        package="my_station_pkg",
-        executable="streamer_node"
-    )
-    tracking_node = Node(
-        package="my_station_pkg",
-        executable="tracking_node"
-    )
+    # img_processing_node = Node(
+    #     package="my_station_pkg",
+    #     executable="img_processing_node"
+    # )
+    # streamer_node = Node(
+    #     package="my_station_pkg",
+    #     executable="streamer_node"
+    # )
+    # tracking_node = Node(
+    #     package="my_station_pkg",
+    #     executable="tracking_node"
+    # )
 
     '''Add the nodes to the launch description'''
     ld.add_action(drone_comms_node)
-    ld.add_action(telemetrypoll_node)
+    #ld.add_action(telemetrypoll_node)
     ld.add_action(mission_update)
     ld.add_action(arduino_node)
     ld.add_action(message_receiver_node)
@@ -112,14 +117,15 @@ def generate_launch_description():
     ld.add_action(auto_mode)
     ld.add_action(manual_mode)
     ld.add_action(timer_node)
-    ld.add_action(ai_node)
+    # ld.add_action(ai_node)
     ld.add_action(sys_controller_node)
-    ld.add_action(streamer_node)
-    ld.add_action(box_select_node)
-    ld.add_action(img_processing_node)
-    ld.add_action(tracking_node)
+    ld.add_action(serial)
+    # ld.add_action(streamer_node)
+    # ld.add_action(box_select_node)
+    # ld.add_action(img_processing_node)
+    # ld.add_action(tracking_node)
     # ld.add_action(slave_node)
-    ld.add_action(error_tracking_node)
+    # ld.add_action(error_tracking_node)
 
     ld.add_action(TimerAction(period=1.0,
                               actions=[OpaqueFunction(function=lambda context: print('Delay completed.'))]))

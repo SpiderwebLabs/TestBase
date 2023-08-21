@@ -89,12 +89,12 @@ class TelemetryPublisherNode(Node):
         if self.is_polling == True:
             while rclpy.ok():
             #while True:
-                # try:
-                #     async for battery in self.drone.telemetry.battery():  # get drone battery status
-                #         self.get_logger().info(f"battery_state: {battery.remaining_percent}")
-                #         break
-                # except Exception as e:
-                #     self.get_logger().error(f"Error in battery telemetry: {e}")
+                try:
+                    async for battery in self.drone.telemetry.battery():  # get drone battery status
+                        self.get_logger().info(f"battery_state: {battery.remaining_percent}")
+                        break
+                except Exception as e:
+                    self.get_logger().error(f"Error in battery telemetry: {e}")
 
                 try:
                     async for gps_info in self.drone.telemetry.gps_info():
@@ -113,10 +113,7 @@ class TelemetryPublisherNode(Node):
                     self.get_logger().error(f"Error in in-air telemetry: {e}")
 
                 try:
-                    async for armed in self.drone.telemetry.armed():  # get drone arming status
-                        self.get_logger().info(f"armed:{armed}")
-                        self.armed = armed
-                        break
+                    32.
                 except Exception as e:
                     self.get_logger().error(f"Error in armed telemetry: {e}")
 
@@ -174,7 +171,7 @@ class TelemetryPublisherNode(Node):
                 msg.armed = self.armed
                 msg.is_in_air = self.in_air
                 msg.gps_satellites = self.gps
-                #msg.battery_percentage = battery.remaining_percent
+                msg.battery_percentage = battery.remaining_percent
                 msg.flight_mode = self.flight_mode
                 msg.landed_state = self.landed_status
                 msg.pos_altitude = self.pos_altitude 

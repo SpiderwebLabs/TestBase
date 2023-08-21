@@ -28,9 +28,14 @@ from rclpy.executors import ExternalShutdownException
 # username_default = "NMU Flight"
 # password_default = "12345"
 
-drone_id_default = "b8a17037a16542fdac7599d4dd265322" 
-farm_id_default = "6245bfdb760d4b829ccdfe6bee357a36" 
-username_default = "NMUFieldB"
+# drone_id_default = "96e47c95fc24466fa8705db7e31f7d44"
+# farm_id_default = "997423b7d75442818ff989f9426b6099"
+# username_default = "RNE_Labs"
+# password_default = "12345"
+
+drone_id_default = "462c69e23d6b47379188fb2b1420c157" # Inno drone use login Zurich
+farm_id_default = "7c4109ae3a154d5b8f8132e16b5d5a03" #Inno farm
+username_default = "InnoM"
 password_default = "12345"
 
 
@@ -66,8 +71,6 @@ class MyNode(Node):
             '''If the login was successful, save the access token'''
             self.access_token = response.json()['access_token']
             self.refresh_token = response.json()['refresh_token']
-            
-
         else:
             '''If the login failed, log the error'''
             self.get_logger().error('Error logging in: {}'.format(response.text))

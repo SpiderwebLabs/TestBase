@@ -26,6 +26,7 @@ class ControlServerNode(Node):
         self.reroute_service = self.create_service(Comms, 'reroute', self.reroute_callback)
         self.telemsub = self.create_subscription(Trials1, 'status_update', self.telemcallback, 10)
         self.telempause = self.create_client(Trigger, 'start_stop_telemetry')
+        
 
 
         #start an event loop
@@ -54,7 +55,7 @@ class ControlServerNode(Node):
     async def _connect_to_drone(self):
         #await self.drone.connect(system_address="serial:///dev/ttyRadiotelem:57600")
         #await self.drone.connect(system_address="udp://:14540")
-        await self.drone.connect(system_address ="serial:///dev/ttyUSB2:57600")
+        await self.drone.connect(system_address ="serial:///dev/ttyUSB0:57600")
         await self.drone.core.set_mavlink_timeout(1.0)
 
 

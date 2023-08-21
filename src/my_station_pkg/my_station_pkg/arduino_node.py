@@ -15,7 +15,7 @@ class ArduinoNode(Node):
         #load_dotenv()
         #self.value=os.getenv('arduino_connect','/dev/ttyACM0')
         #print(self.value)
-        #self.value = "/dev/ttyUSB1"
+        #self.value = "/dev/ttyUSB2"
         self.value = "/dev/ttyArduino"
         #initialize serial communication with Arduino
         self.ser = serial.Serial(self.value, 9600)
