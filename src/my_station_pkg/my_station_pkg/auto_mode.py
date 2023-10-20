@@ -24,7 +24,7 @@ class AutoNode(Node):
         if self.automode_start:
             self.get_logger().info("Auto mode activated")
             self.timer_request.trigger = True
-            self.timer_request.time = 20.0
+            self.timer_request.time = 60.0
             #Start timer node request
             self.timer_control_client.call_async(self.timer_request)
             self.stop_turnig = False

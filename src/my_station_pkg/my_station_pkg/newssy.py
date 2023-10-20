@@ -7,25 +7,196 @@ from std_msgs.msg import String, Bool
 import time
 import math
 
-class MyStateMachineNode(Node):
+
+
+class MyArduinoListener(Node):
     def __init__(self):
-        super().__init__('my_state_machine_node')
-        self.my_machine = self.initialize_state_machine()
+        super().__init__('arduino_listener')
+        self.arduino_action_complete = self.create_subscription(String, "arduino_action_complete", self.arduino_callback, 10)
+
+    def arduino_callback(self, msg):
+        self.arduino_complete_task = msg.data
+        self.get_logger().info(f"{self.arduino_complete_task}")
+
+        actions = {
+            'Hatchopened': 'lift_platform',
+            'Platformup': 'uncentre',
+            'Uncentred': 'mission',
+            'Centred': 'dropplatform',
+            'Platformdown': 'closehatch',
+            'Hatchclosed': 'idlestate'
+        }
+
+        abort_actions = {
+            "Centred": ('platformup', 'abort'),
+            "Platformdown": ('hatchopened', 'abort'),
+            'Hatchclosed': ('idle', 'abort')
+        }
+
+        if not self.abort_flag:
+            if self.arduino_complete_task in actions:
+                self.action_todo = actions[self.arduino_complete_task]
+            else:
+                pass
+        else:
+            self.get_logger().info("aborting flow")
+            if self.arduino_complete_task in abort_actions:
+                self.current_state, self.action_todo = abort_actions[self.arduino_complete_task]
+                self.abort_flag = True
+
+    
+    
+        
+
+class MyMessageReceiver(Node):
+    def __init__(self):
+        super().__init__('message_receiver')
         self.todo_server = self.create_service(Alert, "set_drone_action", self.set_action_callback)
+    def set_action_callback(self, request, response):
+        action = request.execute_action
+        self.get_logger().info(f"{self.action_todo}")
+        self.mission_id = request.mission_id
+
+        # Define a dictionary to map actions to corresponding functions or values
+        action_mapping = {
+            'abort': self.handle_abort,
+            'patrol': self.handle_patrol,
+            'start': self.handle_start,
+            'reroute': self.handle_reroute,
+            'continue': self.handle_continue
+        }
+
+        # Use the dictionary to call the appropriate function or set the appropriate value
+        if action in action_mapping:
+            action_mapping[action](request)
+
+        response.success_trigger = True
+        return response
+
+    def handle_abort(self, request):
+        self.get_logger().info("abort")
+        self.msg.trigger = False
+        self.auto_client.call_async(self.msg)
+        self.manual_client.call_async(self.msg)
+        self.action_todo = 'abort'
+
+    def handle_patrol(self, request):
+        self.msg.trigger = True
+        self.telempause.call_async(self.msg)
+        self.get_logger().info("patrol")
+        self.iter_waypoints = 0
+        self.patrol_flag = True
+        self.waypoints = request.waypoints
+
+    def handle_start(self, request):
+        self.msg.trigger = True
+        self.telempause.call_async(self.msg)
+        self.waypoints = request.waypoints
+        self.action_todo = 'start'
+
+    def handle_reroute(self, request):
+        self.waypoints_received = request.waypoints
+        self.waypoints = self.waypoints_received
+        self.action_todo = 'reroute'
+        self.reroute_flag = True
+        self.get_logger().info('resetting the auto and manual mode')
+
+    def handle_continue(self, request):
+        if self.patrol_flag:
+            self.get_logger().info("continued")
+        else:
+            self.msg.trigger = False
+            self.auto_client.call_async(self.msg)
+            self.manual_client.call_async(self.msg)
+            self.action_todo = 'abort'
+
+
+    def patrol_coordinates(self):
+        self.get_logger().info(f"{self.iter_waypoints}")
+        self.get_logger().info(f"{self.waypoints_received}")
+        self.get_logger().info(f"{len(self.waypoints_received)}")
+        if self.iter_waypoints != len(self.waypoints_received):
+            self.waypoints = [self.waypoints_received[self.iter_waypoints], self.waypoints_received[self.iter_waypoints+1]]
+            self.get_logger().info(f'{self.waypoints}')
+            if self.iter_waypoints == 0:
+                self.action_todo = 'patrol'
+                self.patrol_flag = True
+                self.iter_waypoints +=2
+      
+            elif self.iter_waypoints != 0:
+                self.action_todo = 'continue'
+                self.patrol_flag = True
+                self.iter_waypoints +=2
+        else:
+            self.patrol_flag = False
+            self.action_todo = 'continue'
+
+class MyMissionComplete(Node):
+    def __init__(self):
+        super().__init__('mission_complete')
+        self.missioncompleteserver = self.create_service(Trigger, 'mission_complete', self.missioncomplete_callback)
+    def missioncomplete_callback(self, request, response):
+        if self.mission_arrival_flag == True:
+            self.get_logger().info("Drone arrived at waypoint")
+            self.mission_complete = request.trigger
+            self.mission_request.mission_status = 6.0 #sent to signal that mission completed
+            self.mission_request.mission_id = self.mission_id
+            self.mission_update_client.call_async(self.mission_request)
+            self.action_todo = 'auto_mode'
+            self.mission_arrival_flag = False
+        response.success = True
+        return response
+
+        
+
+class MyStatusUpdate(Node):
+    def __init__(self):
+        super().__init__('status_update')
+        self.drone_status_subscriber = self.create_subscription(Trials1, "status_update", self.drone_status_callback, 10)
+
+    def drone_status_callback(self, msg):
+        '''This function is called when the server receives a message from the drone node'''
+        self.battery_level = msg.battery_percentage # need to change this to the actual battery level
+        if msg.armed == True:
+            self.drone_state = "Armed"
+        velocity_x = msg.velocity_x
+        velocity_y = msg.velocity_y
+        velocity_z = msg.velocity_z
+        self.speed = math.sqrt((velocity_x)**2 + (velocity_y)**2 + (velocity_z)**2)
+        self.drone_state = msg.landed_state
+        self.flight_mode = msg.flight_mode
+        self.get_logger().info(f"flight_mode: {self.flight_mode}")
+        if self.speed <= 0.05 and self.mission_abort == True:
+            self.get_logger().info("please i want to abort")
+            self.mission_abort = False
+            self.current_state = 'uncentred'
+            self.action_todo =  'abort'
+            self.abort_flag = True
+        if self.flight_mode == 5 and not self.abort_flag:
+            self.action_todo = 'centre'
+
+class MyStateMachineNode(Node):
+    def __init__(self, arduino_node, msg_reciever_node, mission_complete_node, status_update_node):
+        super().__init__('my_state_machine_node')
+        self.arduino_node = arduino_node
+        self.msg_reciever_node = msg_reciever_node
+        self.mission_complete_node = mission_complete_node
+        self.status_update_node = status_update_node
+        self.my_machine = self.initialize_state_machine()
+
         self.arduino_client = self.create_client(Arduino1, "send_message")
         self.auto_client = self.create_client(Trigger, 'auto_mode')
         self.manual_client = self.create_client(Trigger, 'manual_mode')
         self.drone_client = self.create_client(Comms, "drone_commands")
         self.mission_update_client = self.create_client(Mission, "mission_status")
         #self.timer_complete_service = self.create_service(Timer, 'timer_complete', self.server_callback)
-        self.arduino_action_complete = self.create_subscription(String, "arduino_action_complete", self.arduino_callback, 10)
-        self.drone_status_subscriber = self.create_subscription(Trials1, "status_update", self.drone_status_callback, 10)
+       
+        
         self.start_api_client = self.create_client(Trigger, "start_stop")
         self.timer_control_client = self.create_client(Timer, 'timer_control')
         self.turn_complete_server = self.create_service(Trigger, 'turn_complete', self.turn_complete_callback)
         self.tracking_done_server = self.create_service(Trigger, 'tracker_done', self.tracking_done_callback)
         self.send_mission_coordinates = self.create_client(Comms, 'get_coordinates')
-        self.missioncompleteserver = self.create_service(Trigger, 'mission_complete', self.missioncomplete_callback)
         
         #communication to drone clients
         self.arm_client = self.create_client(Comms, 'arm')
@@ -40,10 +211,7 @@ class MyStateMachineNode(Node):
         self.turn_right_client = self.create_client(Trigger, 'turn_right')
         self.turn_left_client = self.create_client(Trigger, 'turn_left')
         self.telempause = self.create_client(Trigger, 'start_stop_telemetry')
-        
-        #self.publisher_ = self.create_publisher(Bool, 'start_stop', 10)
         self.timer = self.create_timer(0.1, self.run)
-        self.get_logger().info("System controller node started")
         self.action_todo , self.current_state,  self.arduino_complete_task, self.drone_altitude, self.charging, self.patrol_flag = None, 'idle', None, 3.0, True, False
         self.drone_request, self.arduino_request, self.mission_request, self.msg  = Comms.Request(), Arduino1.Request(), Mission.Request(), Trigger.Request()
         self.speed, self.waypoints, self.flight_mode, self.drone_state, self.iter_waypoints, self.mission_complete, self.drone_state, self.battery_level = None, '', None, None, 0, False, 'on_ground', 0.0
@@ -84,31 +252,6 @@ class MyStateMachineNode(Node):
         ]
         self.current_state = 'idle'
         return Machine(model=self, states=states, transitions=transitions, initial=self.current_state)
-
-
-    def missioncomplete_callback(self, request, response):
-        if self.mission_arrival_flag == True:
-            self.get_logger().info("Drone arrived at waypoint")
-            self.mission_complete = request.trigger
-            self.mission_request.mission_status = 6.0 #sent to signal that mission completed
-            self.mission_request.mission_id = self.mission_id
-            self.mission_update_client.call_async(self.mission_request)
-            self.action_todo = 'auto_mode'
-            self.mission_arrival_flag = False
-        response.success = True
-        return response
-
-    def turn_complete_callback(self, request, response):
-        self.get_logger().info("Drone done turning")
-        self.turn_complete = request.trigger
-        self.mission_request.mission_status = 7.0 #sent to signal that system in manual mode
-        self.mission_request.mission_id = self.mission_id
-        self.mission_update_client.call_async(self.mission_request)
-        self.msg.trigger = True
-        self.manual_client.call_async(self.msg)
-        self.action_todo = "manual_mode"
-        response.success = True
-        return response
     
     def tracking_done_callback(self, request, response):
         self.get_logger().info("tracking mode auto Completed")
@@ -123,136 +266,19 @@ class MyStateMachineNode(Node):
         response.success = True    
         return response
 
-    def set_action_callback(self, request, response):
-        action = request.execute_action
-        self.get_logger().info(f"{self.action_todo}")
-        self.mission_id = request.mission_id
-        if action == 'abort':
-            self.get_logger().info("abort")
-            self.msg.trigger = False
-            self.auto_client.call_async(self.msg)
-            self.manual_client.call_async(self.msg)
-            self.action_todo = 'abort'
-
-        if action in ['patrol', 'start']:
-            self.msg.trigger = True
-            self.telempause.call_async(self.msg)
-
-        if action in ['patrol', 'start', 'reroute']:
-            self.waypoints_received = request.waypoints
-
-        if action != "continue":
-            if action in ['start', 'reroute']: 
-                if action == 'reroute':
-                    self.reroute_flag = True
-                    self.get_logger().info('resetting the auto and manual mode')
-                    self.msg.trigger = False
-                    self.auto_client.call_async(self.msg)
-                    self.manual_client.call_async(self.msg)
-                self.waypoints = self.waypoints_received
-                self.action_todo = action
-            elif action == 'patrol':
-                self.get_logger().info("patrol")
-                self.iter_waypoints = 0
-                self.patrol_flag = True
-                self.waypoints = self.waypoints_received
-                self.patrol_coordinates()
-            else:
-                self.action_todo = action   
-        else:
-            if self.patrol_flag == True:
-                self.get_logger().info("continued")
-                self.msg.trigger = False
-                self.auto_client.call_async(self.msg)
-                self.manual_client.call_async(self.msg)
-
-            else:
-                self.msg.trigger = False
-                self.auto_client.call_async(self.msg)
-                self.manual_client.call_async(self.msg)
-                self.action_todo = 'abort'
-        response.success_trigger = True
+    
+    def turn_complete_callback(self, request, response):
+        self.get_logger().info("Drone done turning")
+        self.turn_complete = request.trigger
+        self.mission_request.mission_status = 7.0 #sent to signal that system in manual mode
+        self.mission_request.mission_id = self.mission_id
+        self.mission_update_client.call_async(self.mission_request)
+        self.msg.trigger = True
+        self.manual_client.call_async(self.msg)
+        self.action_todo = "manual_mode"
+        response.success = True
         return response
     
-    def patrol_coordinates(self):
-        self.get_logger().info(f"{self.iter_waypoints}")
-        self.get_logger().info(f"{self.waypoints_received}")
-        self.get_logger().info(f"{len(self.waypoints_received)}")
-        if self.iter_waypoints != len(self.waypoints_received):
-            self.waypoints = [self.waypoints_received[self.iter_waypoints], self.waypoints_received[self.iter_waypoints+1]]
-            self.get_logger().info(f'{self.waypoints}')
-            if self.iter_waypoints == 0:
-                self.action_todo = 'patrol'
-                self.patrol_flag = True
-                self.iter_waypoints +=2
-      
-            elif self.iter_waypoints != 0:
-                self.action_todo = 'continue'
-                self.patrol_flag = True
-                self.iter_waypoints +=2
-        else:
-            self.patrol_flag = False
-            self.action_todo = 'continue'
-        
-
-    def arduino_callback(self, msg):
-        self.arduino_complete_task = msg.data
-        self.get_logger().info(f"{self.arduino_complete_task }")
-        if not self.abort_flag:
-            if  self.arduino_complete_task  == 'Hatchopened':
-                print('here')
-                self.action_todo = 'lift_platform'
-                print('here2')
-            elif self.arduino_complete_task == 'Platformup':
-                self.action_todo = 'uncentre'
-            elif self.arduino_complete_task == 'Uncentred':
-                self.action_todo = 'mission'
-            elif self.arduino_complete_task == "Centred":
-                self.action_todo = 'dropplatform'
-            elif self.arduino_complete_task == "Platformdown":
-                self.get_logger().info("here guys")
-                self.action_todo = "closehatch"
-            elif self.arduino_complete_task == "Hatchclosed":
-                print('here')
-                self.action_todo = 'idlestate'
-        else:
-            self.get_logger().info("aborting flow")
-            if self.arduino_complete_task == "Centred":
-                self.current_state = 'platformup'
-                self.action_todo = "abort"
-                self.abort_flag = True
-                
-            if self.arduino_complete_task == "Platformdown":
-                self.current_state = 'hatchopened'
-                self.action_todo = "abort"
-                
-                self.abort_flag = True
-            if self.arduino_complete_task == 'Hatchclosed':
-                self.current_state = 'idle'
-                self.action_todo = 'abort'
-            
-        
-    def drone_status_callback(self, msg):
-        '''This function is called when the server receives a message from the drone node'''
-        self.battery_level = msg.battery_percentage # need to change this to the actual battery level
-        if msg.armed == True:
-            self.drone_state = "Armed"
-        velocity_x = msg.velocity_x
-        velocity_y = msg.velocity_y
-        velocity_z = msg.velocity_z
-        self.speed = math.sqrt((velocity_x)**2 + (velocity_y)**2 + (velocity_z)**2)
-        self.drone_state = msg.landed_state
-        self.flight_mode = msg.flight_mode
-        self.get_logger().info(f"flight_mode: {self.flight_mode}")
-        if self.speed <= 0.05 and self.mission_abort == True:
-            self.get_logger().info("please i want to abort")
-            self.mission_abort = False
-            self.current_state = 'uncentred'
-            self.action_todo =  'abort'
-            self.abort_flag = True
-        if self.flight_mode == 5 and not self.abort_flag:
-            self.action_todo = 'centre'
-
     def action_hatchopening(self):
         self.get_logger().info('Hatch opening...')
         if self.system_initialize == True:
@@ -642,12 +668,35 @@ class MyStateMachineNode(Node):
             self.action_todo = None
         #self.action_todo = None
         
+
+
 def main(args=None):
     rclpy.init(args=args)
-    my_node = MyStateMachineNode()
-    rclpy.spin(my_node)
-    my_node.destroy_node()
-    rclpy.shutdown()
+    arduino_node = MyArduinoListener()
+    msg_reciever_node = MyMessageReceiver()
+    mission_complete_node = MyMissionComplete()
+    status_update_node = MyStatusUpdate()
+    state_machine_node = MyStateMachineNode(arduino_node, msg_reciever_node, mission_complete_node, status_update_node)
+    executor = rclpy.executors.MultiThreadedExecutor()
+    executor.add_node(arduino_node)
+    executor.add_node(msg_reciever_node)
+    executor.add_node(mission_complete_node)
+    executor.add_node(status_update_node)
+    executor.add_node(state_machine_node)
+    
+    try:
+        executor.spin()
+    finally:
+        executor.shutdown()
+        arduino_node.destroy_node()
+        msg_reciever_node.destroy_node()
+        mission_complete_node.destroy_node()
+        status_update_node.destroy_node()
+        state_machine_node.destroy_node()
+        rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()
+
+        

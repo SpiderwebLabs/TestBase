@@ -52,9 +52,9 @@ class TelemetryPublisherNode(Node):
 
     async def _connect_to_drone(self):
         #await self.drone.connect(system_address="serial:///dev/ttyRadiotelem:57600")
-        #await self.drone.connect(system_address="udp://:14540")
+        await self.drone.connect(system_address="udp://:14540")
         #await self.drone.connect(system_address = "serial:///dev/ttyUSB0:57600")
-        await self.drone.connect(system_address ="serial:///dev/ttyUSB1:57600")
+        #await self.drone.connect(system_address ="serial:///dev/ttyUSB1:57600")
         #await self.drone.core.set_mavlink_timeout(2.0)
         
     def getcoordinates_callback(self, request, response):
@@ -113,7 +113,9 @@ class TelemetryPublisherNode(Node):
                     self.get_logger().error(f"Error in in-air telemetry: {e}")
 
                 try:
-                    32.
+                    async for armed in self.drone.telemetry.armed():
+                        self.armed = armed
+                        break
                 except Exception as e:
                     self.get_logger().error(f"Error in armed telemetry: {e}")
 

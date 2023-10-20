@@ -39,7 +39,6 @@ if __name__ == '__main__':
 
 
 
-
 # import rclpy
 # from rclpy.node import Node
 # from mavsdk import System

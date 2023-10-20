@@ -54,8 +54,8 @@ class ControlServerNode(Node):
 
     async def _connect_to_drone(self):
         #await self.drone.connect(system_address="serial:///dev/ttyRadiotelem:57600")
-        #await self.drone.connect(system_address="udp://:14540")
-        await self.drone.connect(system_address ="serial:///dev/ttyUSB0:57600")
+        await self.drone.connect(system_address="udp://:14540")
+        #await self.drone.connect(system_address ="serial:///dev/ttyUSB0:57600")
         await self.drone.core.set_mavlink_timeout(1.0)
 
 
@@ -164,9 +164,69 @@ class ControlServerNode(Node):
         print('mission send')
         self.start_pause.trigger = False
         self.telempause.call_async(self.start_pause)
-        self.loop.run_until_complete(self.perform_mission(Decimal(request.pos_altitude), Decimal(request.pos_longitude), Decimal(request.pos_latitude)))
+        if request.trigger:
+            self.loop.run_until_complete(self.avoid_obstacles(request))
+        else:
+            self.loop.run_until_complete(self.perform_mission(Decimal(request.pos_altitude), Decimal(request.pos_longitude), Decimal(request.pos_latitude)))
         response.connect_success = True
         return response
+    
+    async def avoid_obstacles(self, request):
+        # Given list of coordinates
+        coordinates = request.avoid_obstacle_waypoints
+
+        mission_items = []
+
+        # Iterate through the coordinates two at a time
+        for i in range(0, len(coordinates), 2):
+            longitude = float(coordinates[i])
+            latitude = float(coordinates[i + 1])
+
+            mission_item = MissionItem(
+                latitude,
+                longitude,
+                3.0,
+                3.0,
+                True,
+                float('nan'),
+                float('nan'),
+                MissionItem.CameraAction.NONE,
+                0.0,
+                float('nan'),
+                3.0,
+                float('nan'),
+                float('nan')
+            )
+
+            mission_items.append(mission_item)
+
+        # Create a MissionPlan from the mission_items
+        mission_plan = MissionPlan(mission_items)
+        try:
+            await self.drone.mission.upload_mission(mission_plan)
+            
+        except Exception as e:
+            self.get_logger().error(f"Drone connection failed: {str(e)}")
+        else:
+            try:
+                await self.drone.action.arm()
+            except Exception as e:
+                self.get_logger().error(f"Drone connection failed: {str(e)}")
+                await asyncio.sleep(2)
+            else:
+                try:
+                    await self.drone.mission.start_mission()
+                except Exception as e:
+                    self.get_logger().error(f"Drone connection failed: {str(e)}")
+                    await asyncio.sleep(2)
+                else:
+                    self.get_logger().info(f'Drone going to point')
+                    self.start_pause.trigger = True
+                    self.telempause.call_async(self.start_pause)
+
+
+
+
     
     async def perform_mission(self, alt, lon, lat):
         self.latitude = lat

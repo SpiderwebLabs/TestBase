@@ -1,0 +1,3 @@
+string camera_id
+float32 confidence
+bool human_detected

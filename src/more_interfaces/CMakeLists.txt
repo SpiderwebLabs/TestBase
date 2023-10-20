@@ -9,8 +9,13 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
-  
+  #msg 
   "msg/Trials1.msg"
+  "msg/Camera.msg" 
+  "msg/Carplate.msg"
+ 
+
+  #srv
   "srv/Alert.srv"
   "srv/Arduino1.srv"
   "srv/Comms.srv"
@@ -19,7 +24,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/String.srv"
   "srv/Trigger.srv"
   "srv/Timer.srv"
-  
+ 
 )
 
 

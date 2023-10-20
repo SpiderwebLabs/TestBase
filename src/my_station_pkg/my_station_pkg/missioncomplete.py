@@ -26,13 +26,13 @@ class SlaveNode(Node):
     def getcurrentcod_callback(self, msg):
         self.latitude = msg.pos_latitude
         self.longitude = msg.pos_longitude
-        #self.get_logger().info(f"cur_longitude: {self.longitude}, cur_latitude: {self.latitude}")
+        self.get_logger().info(f"cur_longitude: {self.longitude}, cur_latitude: {self.latitude}")
         self.mission_complete_check()
     
     def getcoordinates_callback(self, request, response):
         self.flight_latitude = Decimal(request.pos_latitude)
         self.flight_longitude = Decimal(request.pos_longitude)
-        #self.get_logger().info(f"mision_longitude: {self.flight_longitude}, mission_latitude: {self.flight_latitude}")
+        self.get_logger().info(f"mision_longitude: {self.flight_longitude}, mission_latitude: {self.flight_latitude}")
         response.connect_success = True
         return response
     
@@ -40,8 +40,8 @@ class SlaveNode(Node):
         '''Function to check if drone has reached the target location'''
         cur_pos = (self.latitude, self.longitude)
         target_pos = (self.flight_latitude, self.flight_longitude)
-        mission_complete_recv =  distance.distance(cur_pos, target_pos).m < 2.0
-        #self.get_logger().info(f"Distance: {distance.distance(cur_pos, target_pos).m }")
+        mission_complete_recv =  distance.distance(cur_pos, target_pos).m < 3.0
+        self.get_logger().info(f"Distance: {distance.distance(cur_pos, target_pos).m }")
         if mission_complete_recv and not self.last_mission_complete:
             self.get_logger().info('Mission complete')
             msg = Trigger.Request()
