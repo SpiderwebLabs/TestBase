@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import requests
 import rclpy
 import datetime
@@ -19,20 +20,20 @@ import json
 # username_default = "TestFlight"
 # password_default = "12345"
 
-# drone_id_default = "ad70c5c4e8484d18af6d9601eb023bf8" # Zurich drone use login Zurich
-# farm_id_default = "7d3ab54f0c584bf3a0f8fdffe8e3c151" #Zurich farm
-# username_default = "Zurich"
-# password_default = "12345"
+drone_id_default = "ad70c5c4e8484d18af6d9601eb023bf8" # Zurich drone use login Zurich
+farm_id_default = "7d3ab54f0c584bf3a0f8fdffe8e3c151" #Zurich farm
+username_default = "Zurich"
+password_default = "12345"
 
 # drone_id_default = "c6348d8c6310401181da8496369f30fe" # Zurich drone use login Zurich
 # farm_id_default = "5b15317d233c462d8b5c8863b1da26f1"#Zurich farm
 # username_default = "NMU Flight"
 # password_default = "12345"
 
-drone_id_default = "462c69e23d6b47379188fb2b1420c157" # Inno drone use login Zurich
-farm_id_default = "7c4109ae3a154d5b8f8132e16b5d5a03" #Inno farm
-username_default = "InnoM"
-password_default = "12345"
+# drone_id_default = "462c69e23d6b47379188fb2b1420c157" # Inno drone use login Zurich
+# farm_id_default = "7c4109ae3a154d5b8f8132e16b5d5a03" #Inno farm
+# username_default = "InnoM"
+# password_default = "12345"
 
 class MyNode(Node):
 

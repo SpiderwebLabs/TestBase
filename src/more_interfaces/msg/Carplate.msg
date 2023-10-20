@@ -1,0 +1,3 @@
+string plate_info
+string camera_id
+string type_vehicle

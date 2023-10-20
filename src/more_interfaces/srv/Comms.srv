@@ -3,6 +3,7 @@ string message
 string pos_longitude
 string pos_latitude
 string pos_altitude
+string[] avoid_obstacle_waypoints
 float64 turn_yaw
 ---
 bool connect_success

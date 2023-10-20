@@ -10,7 +10,8 @@ import time
 import json
 from time import sleep
 
-SERIAL_PORT = '/dev/ttyRadiotelem'
+#SERIAL_PORT = '/dev/ttyRadiotelem'
+SERIAL_PORT = '/dev/ttyUSB0'
 BAUDRATE = 57600
 
 class SerialTransmitterNode(Node):
@@ -195,6 +196,7 @@ class SerialRead(Node):
                         self.msg.velocity_z = received_data['vel_z']
                         self.msg.current_yaw = received_data['yaw']
                         self.msg.landed_state = received_data['landed_state']
+                        self.msg.flight_mode = received_data['flight_mode']
                         
                         self.telempub.publish(self.msg)
                         time.sleep(0.3)

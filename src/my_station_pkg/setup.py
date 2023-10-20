@@ -42,7 +42,17 @@ setup(
             "Batteryholder = my_station_pkg.Batteryholder:main",
             "rtk = my_station_pkg.rtk:main",
             "serial = my_station_pkg.serial:main",
-            'test= my_station_pkg.test:main'
+            'test= my_station_pkg.test:main',
+            'Camera_streamer = my_station_pkg.Camera_streamer:main',
+            'ip_cam=my_station_pkg.ip_cam:main',
+            'ip_cam_ai= my_station_pkg.ip_cam_ai:main',
+            'Camera_streamer2 = my_station_pkg.Camera_streamer2:main',
+            'Camera_streamer3 = my_station_pkg.Camera_streamer3:main',
+            'Camera_control = my_station_pkg.Camera_control:main',
+            'Plate_detention = my_station_pkg.Plate_detention:main',
+            "add_vehicle = my_station_pkg.add_vehicle:main",
+            "dataprocessing = my_station_pkg.dataprocessing:main"
+
 
         ],
     },
